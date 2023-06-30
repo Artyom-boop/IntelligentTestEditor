@@ -12,9 +12,10 @@ class TestService {
             });
     }
 
-    generateTest(topicTest, numberQuestion, minAnswers, maxAnswers) {
+    generateTest(topicTest, numberQuestion, minAnswers, maxAnswers, hintFlag) {
         return axios.get(API_URL + 'generate-test' + '?testTopic=' + topicTest + "&numberQuestions=" +
-            numberQuestion + '&minAnswers=' + minAnswers + '&maxAnswers=' + maxAnswers, {headers: authHeader()})
+            numberQuestion + '&minAnswers=' + minAnswers + '&maxAnswers=' + maxAnswers +
+            '&hintFlag=' + hintFlag,  {headers: authHeader()})
             .then((res) => {
                 return res;
             });

@@ -119,3 +119,9 @@ label {
   border-color: #007bff;
   box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
 }
+
+.hintFlag {
+  font-size: 20px;
+  padding: 10px;
+  font-family: Arial, sans-serif;
+}

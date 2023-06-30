@@ -3,6 +3,7 @@ package com.project.IntelligentEditorAPI.controllers;
 import com.project.IntelligentEditorAPI.model.Question;
 import com.project.IntelligentEditorAPI.model.Test;
 import com.project.IntelligentEditorAPI.model.TestRequest;
+import com.project.IntelligentEditorAPI.payload.response.MessageResponse;
 import com.project.IntelligentEditorAPI.repositories.QuestionRepository;
 import com.project.IntelligentEditorAPI.repositories.TestRepository;
 import com.project.IntelligentEditorAPI.repositories.UserRepository;
@@ -10,6 +11,7 @@ import com.project.IntelligentEditorAPI.services.ChatGptService;
 import com.project.IntelligentEditorAPI.services.TestService;
 import com.project.IntelligentEditorAPI.services.ExportService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import java.io.IOException;
@@ -38,8 +40,8 @@ public class TestController {
     @Autowired
     TestRepository testRepository;
 
-    @GetMapping("/all")
-    public String allAccess() {
+    @GetMapping("/homepage")
+    public String homePage() {
         return "IntelligentTestEditor - это приложение для создания тестовых заданий" +
                 " с использованием ChatGPT.";
     }
@@ -67,8 +69,14 @@ public class TestController {
     public Test generateTest(@RequestParam String testTopic,
                              @RequestParam Integer numberQuestions,
                              @RequestParam Integer minAnswers,
-                             @RequestParam Integer maxAnswers) throws IOException {
-        Test test = chatGptService.createTestWithHints(testTopic, numberQuestions, minAnswers, maxAnswers);
+                             @RequestParam Integer maxAnswers, @RequestParam Boolean hintFlag) throws IOException {
+        Test test;
+
+        if (hintFlag)
+            test = chatGptService.createTestWithHints(testTopic, numberQuestions, minAnswers, maxAnswers);
+        else {
+            test = chatGptService.createTest(testTopic, numberQuestions, minAnswers, maxAnswers);
+        }
         if (test != null) {
             testService.saveTest(test);
         }
@@ -76,10 +84,9 @@ public class TestController {
     }
 
     @PostMapping("/save-test")
-    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
-    public String saveTest(@RequestBody Test test) {
+    public ResponseEntity<?> saveTest(@RequestBody Test test) {
         testService.updateTest(test);
-        return "Test save";
+        return ResponseEntity.ok(new MessageResponse("Test delete"));
     }
 
     @PostMapping("/set-question")
@@ -94,9 +101,9 @@ public class TestController {
 
     @GetMapping("/delete-test")
     @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
-    public String deleteTest(@RequestParam Long id) {
+    public ResponseEntity<?> deleteTest(@RequestParam Long id) {
         testService.deleteTestById(id);
-        return "Тест удалён";
+        return ResponseEntity.ok(new MessageResponse("Test delete"));
     }
 
     @GetMapping("/delete-question")
@@ -121,7 +128,6 @@ public class TestController {
     }
 
     @GetMapping("/add-answer")
-    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
     public Test addAnswer(@RequestParam Long questionId, @RequestParam Boolean correct) throws IOException {
         Question question = testService.findQuestionById(questionId);
         chatGptService.addAnswer(question, correct);
@@ -130,8 +136,8 @@ public class TestController {
     }
 
     @GetMapping("/export-test")
-    @PreAuthorize("hasRole('USER') or hasRole('ADMIN')")
-    public String exportTest(@RequestParam Long testId, @RequestParam String flag) {
+    public String exportTest(@RequestParam Long testId,
+                             @RequestParam String flag) {
         Test test = testService.findTestById(testId);
         if (test != null) {
             if (flag.equals("gift"))

@@ -38,58 +38,34 @@ public class ChatGptService {
     OpenAiClient openAiClient =
             OpenAiClientFactory.createClient(token);
 
-    public Test createTest(String testTopic, Integer numberQuestions) throws IOException {
-        List<ChatMessage> chatMessages = new ArrayList<>();
-        ChatMessage chatMessage = new ChatMessage();
-        chatMessage.setRole("user");
-        chatMessage.setContent("Сделай тест на тему - " + testTopic + " из " + numberQuestions + " вопросов в формате json, варианты ответов не нумеруй, выведи в таком формате {\n" +
+    public Test createTest(String testTopic, Integer numberQuestions,
+                           Integer minAnswers, Integer maxAnswers)    throws IOException {
+        String textMessage = "Пожалуйста, создай для меня тест на тему " + testTopic + " в формате JSON. " +
+                "Тест должен содержать " + numberQuestions +
+                " вопроса. В каждом вопросе должно быть от " + minAnswers + " до " + maxAnswers +
+                " вариантов ответа. У каждого вопроса должны быть варианты ответов, и количество верных ответов" +
+                " должно быть случайным и разным для каждого вопроса. В ответ выводи только JSON. " +
+                "Пожалуйста, предоставь тест в следующем формате: {\n" +
                 "\"questions\": [\n" +
-                "        {\n" +
-                "            \"question\": \"вопрос\",\n" +
-                "            \"options\": [\n" +
-                "                \"здесь варианты ответов\",\n" +
-                "            ],\n" +
-                "            \"answer\": \"здесь верный ответ\"\n" +
-                "        }\n" +
-                "    ]\n" +
-                "}");
+                "{\n" +
+                "\"question\": \"вопрос\",\n" +
+                "\"options\": [(здесь варианты ответов)\n" +
+                "\"option\":\n" +
+                "{\n" +
+                "\"text\": \"здесь текст варианта ответа\"\n" +
+                "\"correct\": true если ответ правильный или false если ответ неправильный\n" +
+                "}\n" +
+                "]\n" +
+                "}\n" +
+                "]\n" +
+                "}";
 
-        chatMessages.add(chatMessage);
-        Response<ChatCompletionResponse> response = executeRequest(chatMessages);
-
-        TestDTO testDTO = null;
-        if (response.isSuccessful() && response.body() != null) {
-            {
-                ObjectMapper objectMapper = new ObjectMapper();
-                String str = response.body().getChoices().get(0).getMessage().getContent();
-                ChatMessage message = response.body().getChoices().get(0).getMessage();
-                chatMessages.add(message);
-                boolean isReady = true;
-                while (isReady) {
-                    try {
-                        testDTO = objectMapper.readValue(str, TestDTO.class);
-                        isReady = false;
-                    } catch (JsonMappingException e) {
-                        chatMessages.add(generateWithContext(chatMessages));
-                        str+= chatMessages.get(chatMessages.size() - 1).getContent();
-                    }
-                }
-            }
-        }
-        Test test = null;
-        if (testDTO != null) {
-            testDTO.setTitle(testTopic);
-            test = testService.convertTestDtoToTest(testDTO);
-        }
-
-        return test;
+        return generateTest(textMessage, testTopic);
     }
 
-    public Test createTestWithHints(String testTopic, Integer numberQuestions, Integer minAnswers, Integer maxAnswers) throws IOException {
-        List<ChatMessage> chatMessages = new ArrayList<>();
-        ChatMessage chatMessage = new ChatMessage();
-        chatMessage.setRole("user");
-        chatMessage.setContent("Пожалуйста, создай для меня тест на тему " + testTopic + " в формате JSON. " +
+    public Test createTestWithHints(String testTopic, Integer numberQuestions,
+                                    Integer minAnswers, Integer maxAnswers)    throws IOException {
+        String textMessage = "Пожалуйста, создай для меня тест на тему " + testTopic + " в формате JSON. " +
                 "Тест должен содержать " + numberQuestions +
                 " вопроса. В каждом вопросе должно быть от " + minAnswers + " до " + maxAnswers +
                 " вариантов ответа. У каждого вопроса должны быть варианты ответов, и количество верных ответов" +
@@ -109,7 +85,16 @@ public class ChatGptService {
                 "]\n" +
                 "}\n" +
                 "]\n" +
-                "}");
+                "}";
+
+        return generateTest(textMessage, testTopic);
+    }
+
+    public Test generateTest(String textMessage, String testTopic) throws IOException {
+        List<ChatMessage> chatMessages = new ArrayList<>();
+        ChatMessage chatMessage = new ChatMessage();
+        chatMessage.setRole("user");
+        chatMessage.setContent(textMessage);
 
         chatMessages.add(chatMessage);
         Response<ChatCompletionResponse> response = executeRequest(chatMessages);
@@ -118,18 +103,21 @@ public class ChatGptService {
         if (response.isSuccessful() && response.body() != null) {
             {
                 ObjectMapper objectMapper = new ObjectMapper();
-                String str = response.body().getChoices().get(0).getMessage().getContent();
+                String content = response.body().getChoices().get(0).getMessage().getContent();
+                if (!validateTestFormat(content)) {
+                    return null;
+                }
                 ChatMessage message = response.body().getChoices().get(0).getMessage();
                 chatMessages.add(message);
                 boolean isReady = true;
                 while (isReady) {
                     try {
-                        testDTO = objectMapper.readValue(str, TestDTO.class);
+                        testDTO = objectMapper.readValue(content, TestDTO.class);
                         isReady = false;
                     } catch (JsonMappingException e) {
                         ChatMessage currentMessage = generateWithContext(chatMessages);
                         chatMessages.add(currentMessage);
-                        str+= chatMessages.get(chatMessages.size() - 1).getContent();
+                        content+= chatMessages.get(chatMessages.size() - 1).getContent();
                     }
                 }
             }
@@ -142,7 +130,7 @@ public class ChatGptService {
         return test;
     }
 
-    public ChatMessage generateWithContext(List<ChatMessage> chatMessages) throws IOException {
+    private ChatMessage generateWithContext(List<ChatMessage> chatMessages) throws IOException {
         ChatMessage chatMessage = new ChatMessage();
         chatMessage.setRole("user");
         chatMessage.setContent("Продолжай");
@@ -184,9 +172,9 @@ public class ChatGptService {
 
         if (response.isSuccessful() && response.body() != null) {
             ObjectMapper objectMapper = new ObjectMapper();
-            String str = response.body().getChoices().get(0).getMessage().getContent();
+            String content = response.body().getChoices().get(0).getMessage().getContent();
             try {
-                questionDTO = objectMapper.readValue(str, QuestionDTO.class);
+                questionDTO = objectMapper.readValue(content, QuestionDTO.class);
             } catch (JsonMappingException e) {
                 return null;
             }
@@ -222,10 +210,10 @@ public class ChatGptService {
         Response<ChatCompletionResponse> response = executeRequest(chatMessages);
         if (response.isSuccessful() && response.body() != null) {
             ObjectMapper objectMapper = new ObjectMapper();
-            String str = response.body().getChoices().get(0).getMessage().getContent();
+            String content = response.body().getChoices().get(0).getMessage().getContent();
             QuestionDTO questionDTO;
             try {
-                questionDTO = objectMapper.readValue(str, QuestionDTO.class);
+                questionDTO = objectMapper.readValue(content, QuestionDTO.class);
             } catch (JsonMappingException e) {
                 return null;
             }
@@ -302,5 +290,9 @@ public class ChatGptService {
             option.setHint(optionsDTO.get(i).getHint());
             option.setCorrect(optionsDTO.get(i).getCorrect());
         }
+    }
+
+    private boolean validateTestFormat(String response) {
+        return response.charAt(0) == '{';
     }
 }

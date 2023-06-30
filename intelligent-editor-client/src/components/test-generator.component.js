@@ -11,7 +11,6 @@ class TestGenerator extends Component {
 
         const windowUrl = window.location.search;
         const params = new URLSearchParams(windowUrl);
-        console.log(params.get('id'));
         this.state = {
             content: []
         };
@@ -29,8 +28,10 @@ class TestGenerator extends Component {
         this.setState({
             content: "Тест в процессе генерации...",
         });
+        const hintFlagInput = document.getElementById('hintFlagInput');
+        const hintFlag = hintFlagInput.checked;
         testService.generateTest(this.state.value, this.state.numberQuestion, this.state.minAnswers,
-            this.state.maxAnswers).then(
+            this.state.maxAnswers, hintFlag).then(
             response => {
                 console.log(response.data)
                 if (response.data === "") {
@@ -77,6 +78,10 @@ class TestGenerator extends Component {
                         </label>
                         <label>
                             <input className="test-input" name="maxAnswers"  type="text" placeholder="Макс. число ответов" onChange={this.handleChange}/>
+                        </label>
+                        <label className="hintFlag">
+                        <input className="hintFlag" type="checkbox" name="hintFlag" id="hintFlagInput" />
+                            Подсказки к неправильным ответам
                         </label>
                         <button onClick={(e) => {
                             this.generateTest(e);
